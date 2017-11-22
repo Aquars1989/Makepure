@@ -1,0 +1,7 @@
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\bin\Release\Makepure.exe
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\bin\Release\Makepure.pdb
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Release\Makepure.MainForm.resources
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Release\Makepure.Properties.Resources.resources
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Release\Makepure.csproj.GenerateResource.Cache
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Release\Makepure.exe
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Release\Makepure.pdb
