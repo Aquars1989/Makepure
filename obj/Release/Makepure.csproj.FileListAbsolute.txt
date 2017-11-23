@@ -5,3 +5,4 @@ C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Rele
 C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Release\Makepure.csproj.GenerateResource.Cache
 C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Release\Makepure.exe
 C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Release\Makepure.pdb
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Release\Makepure.csprojResolveAssemblyReference.cache

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -118,7 +119,17 @@ namespace Makepure
         /// <summary>
         /// 色彩差異暫存表
         /// </summary>
-        private byte[] _Map;
+        private byte[] _ColorMap;
+
+        /// <summary>
+        /// 距離暫存表
+        /// </summary>
+        private short[] _DistanceMap;
+
+        /// <summary>
+        /// 紀錄除目前取樣點外符合值的地圖
+        /// </summary>
+        private BitArray _UseMap;
 
         /// <summary>
         /// 圖片繪製位置
@@ -198,8 +209,11 @@ namespace Makepure
                 if (offset < 0) offset = 0;
                 else if (offset > 255) offset = 255;
 
+                int range = _MouseDownPoint.Y - e.Y;
+                if (offset < 0) offset = 0;
+                else if (offset > 255) offset = 255;
 
-                PickColor(_ScaleImage, _ConvertedImage, _Map, pictInfo.Allowance, offset);
+                PickColor(_ScaleImage, _ConvertedImage, _ColorMap, _DistanceMap, pictInfo);
                 pictInfo.Allowance = offset;
                 splitContainer1.Panel1.Invalidate(_ImageRect);
                 splitContainer1.Panel2.Invalidate(_ImageRect);
@@ -214,7 +228,7 @@ namespace Makepure
                     for (int i = 0; i < _PickInfos.Count; i++)
                     {
                         PickInfo pickInfo = _PickInfos[i];
-                        if (Math.Pow(pickInfo.ScalePoint.X - e.X, 2) + Math.Pow(pickInfo.ScalePoint.Y - e.Y, 2) < checkDist)
+                        if (Math.Pow(pickInfo.DisplayPoint.X - e.X, 2) + Math.Pow(pickInfo.DisplayPoint.Y - e.Y, 2) < checkDist)
                         {
                             Cursor = Cursors.Hand;
                             _HoverColor = pickInfo.Color;
@@ -277,11 +291,18 @@ namespace Makepure
                             if (x >= _ScaleImage.Width) x = _ScaleImage.Width - 1;
                             if (y >= _ScaleImage.Height) y = _ScaleImage.Height - 1;
                             Point pot = new Point(x, y);
-                            _PickInfos.Add(new PickInfo() { Allowance = 0, PickPoint = pot, ScalePoint = e.Location, Color = _HoverColor });
+                            _PickInfos.Add(new PickInfo()
+                            {
+                                Allowance = 0,
+                                PickPoint = pot,
+                                DisplayPoint = e.Location,
+                                Color = _HoverColor,
+                                UseMap = new BitArray(_ScaleImage.Width * _ScaleImage.Height)
+                            });
                             _PickInfoIndex = _PickInfos.Count - 1;
 
-                            BuildMap(_Map, _ScaleImage, _PickInfos, _PickInfos[_PickInfoIndex]);
-                            PickColor(_ScaleImage, _ConvertedImage, _Map, -1, 0);
+                            BuildMap(_ColorMap, _DistanceMap, _ScaleImage, _PickInfos[_PickInfoIndex]);
+                            PickColor(_ScaleImage, _ConvertedImage, _ColorMap, _DistanceMap, _PickInfos[_PickInfoIndex]);
                             splitContainer1.Invalidate(true);
                             Cursor = _NullCursor;
                             break;
@@ -295,7 +316,7 @@ namespace Makepure
             if (_MouseDown)
             {
                 _MouseDown = false;
-                Cursor.Position = splitContainer1.Panel1.PointToScreen(_PickInfos[_PickInfoIndex].ScalePoint);
+                Cursor.Position = splitContainer1.Panel1.PointToScreen(_PickInfos[_PickInfoIndex].DisplayPoint);
                 Cursor = Cursors.Default;
             }
         }
@@ -341,7 +362,7 @@ namespace Makepure
                 e.Graphics.DrawImage(_ScaleImage, _ImageRect);
                 foreach (PickInfo pickInfo in _PickInfos)
                 {
-                    Rectangle rectFull = new Rectangle(pickInfo.ScalePoint.X - _AllowanceHalfWidth, pickInfo.ScalePoint.Y - _AllowanceHalfWidth, _AllowanceHalfWidth * 2, _AllowanceHalfWidth * 2);
+                    Rectangle rectFull = new Rectangle(pickInfo.DisplayPoint.X - _AllowanceHalfWidth, pickInfo.DisplayPoint.Y - _AllowanceHalfWidth, _AllowanceHalfWidth * 2, _AllowanceHalfWidth * 2);
                     using (SolidBrush fillEllipseBrush = new SolidBrush(Color.FromArgb(140, 255 - pickInfo.Color.R, 255 - pickInfo.Color.G, 255 - pickInfo.Color.B)))
                     {
                         e.Graphics.FillEllipse(fillEllipseBrush, rectFull);
@@ -350,7 +371,7 @@ namespace Makepure
                     int allowWid = (int)(_AllowanceHalfWidth * (pickInfo.Allowance / 255F));
                     if (allowWid > 0)
                     {
-                        Rectangle rectAllowance = new Rectangle(pickInfo.ScalePoint.X - allowWid, pickInfo.ScalePoint.Y - allowWid, allowWid * 2, allowWid * 2);
+                        Rectangle rectAllowance = new Rectangle(pickInfo.DisplayPoint.X - allowWid, pickInfo.DisplayPoint.Y - allowWid, allowWid * 2, allowWid * 2);
                         using (SolidBrush allowanceBrush = new SolidBrush(Color.FromArgb(200, pickInfo.Color)))
                         {
                             e.Graphics.FillEllipse(allowanceBrush, rectAllowance);
@@ -436,7 +457,11 @@ namespace Makepure
             Size newSize = new Size((int)(_BaseImage.Width / scale), (int)(_BaseImage.Height / scale));
             _ScaleImage = new Bitmap(_BaseImage, newSize);           //產生縮小預覽圖片
             _ConvertedImage = new Bitmap(_ScaleImage.Width, _ScaleImage.Height);
-            _Map = new byte[_ScaleImage.Width * _ScaleImage.Height]; //色彩差異暫存表配置大小
+
+            int mapLen = _ScaleImage.Width * _ScaleImage.Height;
+            _ColorMap = new byte[mapLen]; //色彩差異暫存表配置大小
+            _DistanceMap = new short[mapLen];
+            _UseMap = new BitArray(mapLen);
             PickColor(_ScaleImage, _ConvertedImage, _PickInfos, 0);
             SetImageSize();
             saveFileDialog1.InitialDirectory = Path.GetDirectoryName(path);
@@ -469,61 +494,47 @@ namespace Makepure
                 int x = (int)(pickInfo.PickPoint.X / _Scale) + _ImageRect.Left;
                 int y = (int)(pickInfo.PickPoint.Y / _Scale) + _ImageRect.Top;
                 Point pot = new Point(x, y);
-                pickInfo.ScalePoint = new Point(x, y);
+                pickInfo.DisplayPoint = new Point(x, y);
             }
 
             splitContainer1.Invalidate(true);
         }
 
         /// <summary>
-        /// 建立色彩差異暫存表,加快調整速度
+        /// 建立暫存表,加快調整速度
         /// </summary>
-        /// <param name="map">色彩差異暫存表</param>
+        /// <param name="colorMap">色彩差異暫存表</param>
+        /// <param name="distanceMap">距離暫存表</param>
         /// <param name="baseImage">原始圖</param>
-        /// <param name="pickInfos">取樣點列表</param>
-        /// <param name="current">目前取樣點</param>
-        private void BuildMap(byte[] map, Bitmap baseImage, List<PickInfo> pickInfos, PickInfo current)
+        /// <param name="currentPick">目前取樣點</param>
+        private void BuildMap(byte[] colorMap, short[] distanceMap, BitArray useMap, Bitmap baseImage, List<PickInfo> allPick, PickInfo currentPick)
         {
             unsafe
             {
                 Rectangle rect = new Rectangle(0, 0, baseImage.Width, baseImage.Height);
-                int cot = baseImage.Height * baseImage.Width;
                 BitmapData baseData = baseImage.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
                 IntPtr basePtr = baseData.Scan0;
                 byte* baseP = (byte*)basePtr.ToPointer();
-
-                for (int i = 0; i < cot; i++)
+                double maxDistance = Math.Sqrt(Math.Pow(baseImage.Width, 2) * Math.Pow(baseImage.Height, 2)) / 1000;
+                int i = 0;
+                for (int y = 0; y < baseImage.Height; y++)
                 {
-                    byte r = baseP[2];
-                    byte g = baseP[1];
-                    byte b = baseP[0];
-
-                    bool match = false;
-                    foreach (var pickInfo in pickInfos)
+                    for (int x = 0; x < baseImage.Width; x++)
                     {
-                        if (pickInfo == current) continue;
+                        byte r = baseP[2];
+                        byte g = baseP[1];
+                        byte b = baseP[0];
 
-                        if (Math.Abs(pickInfo.Color.R - r) <= pickInfo.Allowance &&
-                            Math.Abs(pickInfo.Color.G - g) <= pickInfo.Allowance &&
-                            Math.Abs(pickInfo.Color.B - b) <= pickInfo.Allowance)
-                        {
-                            match = true;
-                            break;
-                        }
-                    }
+                        int dR = Math.Abs(currentPick.Color.R - r);
+                        int dG = Math.Abs(currentPick.Color.G - g);
+                        int dB = Math.Abs(currentPick.Color.B - b);
 
-                    if (match)
-                    {
-                        map[i] = 0;
+                        short z = (short)(Math.Sqrt(Math.Pow(currentPick.PickPoint.X - x, 2) + Math.Pow(currentPick.PickPoint.Y - y, 2)) * maxDistance);
+                        colorMap[i] = (byte)Math.Max(Math.Max(dR, dG), dB);
+                        distanceMap[i] = z;
+                        baseP += 4;
+                        i++;
                     }
-                    else
-                    {
-                        int dR = Math.Abs(current.Color.R - r);
-                        int dG = Math.Abs(current.Color.G - g);
-                        int dB = Math.Abs(current.Color.B - b);
-                        map[i] = (byte)Math.Max(Math.Max(dR, dG), dB);
-                    }
-                    baseP += 4;
                 }
                 baseImage.UnlockBits(baseData);
             }
@@ -603,12 +614,9 @@ namespace Makepure
         /// <param name="baseImage">原始圖片</param>
         /// <param name="convertImage">處理後圖片</param>
         /// <param name="map">色彩差異暫存表</param>
-        /// <param name="oldVal">原始容許值</param>
-        /// <param name="newVal">新容許值</param>
-        private void PickColor(Bitmap baseImage, Bitmap convertImage, byte[] map, int oldVal, int newVal)
+        /// <param name="pickInfos">原始容許值</param>
+        private void PickColor(Bitmap baseImage, Bitmap convertImage, byte[] map, short[] distance, PickInfo pickInfo)
         {
-            if (oldVal == newVal) return;
-
             unsafe
             {
                 Rectangle rect = new Rectangle(0, 0, baseImage.Width, baseImage.Height);
@@ -619,41 +627,28 @@ namespace Makepure
                 IntPtr convertPtr = convertData.Scan0;
                 byte* baseP = (byte*)basePtr.ToPointer();
                 byte* convertP = (byte*)convertPtr.ToPointer();
-                bool plus = newVal > oldVal;
-                if (plus)
+                for (int i = 0; i < cot; i++)
                 {
-                    for (int i = 0; i < cot; i++)
+                    if (map[i] <= pickInfo.Allowance)
                     {
-                        if (map[i] >= 0 && map[i] > oldVal && map[i] <= newVal)
+                        if (!pickInfo.UseMap[i])
                         {
-                            byte r = baseP[2];
-                            byte g = baseP[1];
-                            byte b = baseP[0];
-                            convertP[0] = b;
-                            convertP[1] = g;
-                            convertP[2] = r;
+                            convertP[0] = baseP[2];
+                            convertP[1] = baseP[1];
+                            convertP[2] = baseP[0];
+                            pickInfo.UseMap[i] = true;
                         }
-                        baseP += 4;
-                        convertP += 4;
                     }
-                }
-                else
-                {
-                    for (int i = 0; i < cot; i++)
+                    else
                     {
-                        if (map[i] >= 0 && map[i] <= oldVal && map[i] > newVal)
-                        {
-                            byte r = baseP[2];
-                            byte g = baseP[1];
-                            byte b = baseP[0];
-                            byte v = (byte)((r + g + b) / 3);
-                            convertP[0] = v;
-                            convertP[1] = v;
-                            convertP[2] = v;
-                        }
-                        baseP += 4;
-                        convertP += 4;
+                        byte v = (byte)((baseP[0] + baseP[1] + baseP[2]) / 3);
+                        convertP[0] = v;
+                        convertP[1] = v;
+                        convertP[2] = v;
+                        pickInfo.UseMap[i] = false;
                     }
+                    baseP += 4;
+                    convertP += 4;
                 }
                 baseImage.UnlockBits(baseData);
                 convertImage.UnlockBits(convertData);
@@ -671,9 +666,9 @@ namespace Makepure
             public Point PickPoint;
 
             /// <summary>
-            /// 縮放後位置
+            /// 預覽圖位置
             /// </summary>
-            public Point ScalePoint;
+            public Point DisplayPoint;
 
             /// <summary>
             /// 取樣顏色
@@ -684,6 +679,16 @@ namespace Makepure
             /// 色差容許值
             /// </summary>
             public int Allowance;
+
+            /// <summary>
+            /// 檢測範圍
+            /// </summary>
+            public int Range;
+
+            /// <summary>
+            /// 紀錄符合值的地圖
+            /// </summary>
+            public BitArray UseMap;
         }
     }
 }

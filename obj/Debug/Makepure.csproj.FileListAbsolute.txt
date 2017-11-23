@@ -1,0 +1,8 @@
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\bin\Debug\Makepure.exe
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\bin\Debug\Makepure.pdb
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Debug\Makepure.MainForm.resources
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Debug\Makepure.Properties.Resources.resources
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Debug\Makepure.csproj.GenerateResource.Cache
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Debug\Makepure.exe
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Debug\Makepure.pdb
+C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Debug\Makepure.csprojResolveAssemblyReference.cache
