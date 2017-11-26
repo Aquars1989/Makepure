@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Linq;
@@ -63,8 +64,8 @@ namespace Makepure
             protected set
             {
                 _Range = value;
-                if (_Allowance > MaxRange) _Allowance = MaxRange;
-                else if (_Allowance < 0) _Allowance = 0;
+                if (_Range > MaxRange) _Range = MaxRange;
+                else if (_Range < 0) _Range = 0;
             }
         }
 
@@ -76,7 +77,7 @@ namespace Makepure
         /// <summary>
         /// 轉化器
         /// </summary>
-        public class PureConverter
+        public class PureConverter :IDisposable
         {
             /// <summary>
             /// 採樣點列表
@@ -99,11 +100,16 @@ namespace Makepure
             private BitArray _UseMap;
 
             /// <summary>
+            /// 採樣點數量
+            /// </summary>
+            public int PickCount { get { return _PickInfos.Count; } }
+
+            /// <summary>
             /// 主要取樣點Index
             /// </summary>
             public int CurrentPickIndex { get; private set; }
 
-            private ImageObject _BaseImage;
+            private ImageObject _BaseImage = null;
             /// <summary>
             /// 原始圖片
             /// </summary>
@@ -112,15 +118,15 @@ namespace Makepure
                 get { return _BaseImage; }
                 set
                 {
-                    if (BaseImage == value) return;
+                    if (_BaseImage == value) return;
                     if (ConvertImage != null)
                     {
                         ConvertImage.Dispose();
                         ConvertImage = null;
                     }
 
-                    BaseImage = value;
-                    if (BaseImage == null)
+                    _BaseImage = value;
+                    if (_BaseImage == null)
                     {
                         _ColorMap = null;
                         _DistanceMap = null;
@@ -128,10 +134,10 @@ namespace Makepure
                     }
                     else
                     {
-                        ConvertImage = BaseImage.Copy();
-                        _ColorMap = new byte[BaseImage.PixelCount];
-                        _DistanceMap = new short[BaseImage.PixelCount];
-                        _UseMap = new BitArray(BaseImage.PixelCount);
+                        ConvertImage = _BaseImage.Copy();
+                        _ColorMap = new byte[_BaseImage.PixelCount];
+                        _DistanceMap = new short[_BaseImage.PixelCount];
+                        _UseMap = new BitArray(_BaseImage.PixelCount);
                     }
                     ClearPick();
                 }
@@ -141,6 +147,24 @@ namespace Makepure
             /// 轉化圖片
             /// </summary>
             public ImageObject ConvertImage { get; private set; }
+
+            private double _DisplayScale = 1;
+            /// <summary>
+            /// 顯示縮放倍數
+            /// </summary>
+            public double DisplayScale
+            {
+                get { return _DisplayScale; }
+                set
+                {
+                    if (_DisplayScale == value) return;
+                    _DisplayScale = value;
+                    foreach (Pick pick in _PickInfos)
+                    {
+                        pick.DisplayPoint = new Point((int)(pick.PickPoint.X * _DisplayScale), (int)(pick.PickPoint.Y * _DisplayScale));
+                    }
+                }
+            }
 
             /// <summary>
             /// 取得指定索引的採樣點
@@ -156,9 +180,9 @@ namespace Makepure
             /// 取得取樣點列表
             /// </summary>
             /// <returns>取樣點列表</returns>
-            public List<Pick>.Enumerator GetPicks()
+            public ReadOnlyCollection<Pick> GetPickList()
             {
-                return _PickInfos.GetEnumerator();
+                return _PickInfos.AsReadOnly();
             }
 
             /// <summary>
@@ -184,7 +208,7 @@ namespace Makepure
                 int oldRange = currentPick.Range;
                 currentPick.Allowance = allowance;
                 currentPick.Range = range;
-                if (oldAllowance == currentPick.Allowance && currentPick.Range == range) return;
+                if (oldAllowance == currentPick.Allowance && oldRange == currentPick.Range) return;
 
                 int cot = BaseImage.PixelCount;
                 IntPtr basePtr = BaseImage.LockBitsAndGetScan0(ImageLockMode.ReadOnly);
@@ -230,8 +254,9 @@ namespace Makepure
             /// <param name="currentPickIndex">主要採樣點索引</param>
             public void SetCurrentIndex(int currentPickIndex)
             {
-                if (currentPickIndex >= _PickInfos.Count || CurrentPickIndex < 0) return;
+                if (currentPickIndex >= _PickInfos.Count || currentPickIndex < 0) return;
 
+                CurrentPickIndex = currentPickIndex;
                 Pick currentPick = _PickInfos[currentPickIndex];
                 IntPtr basePtr = BaseImage.LockBitsAndGetScan0(ImageLockMode.ReadOnly);
                 unsafe
@@ -267,6 +292,76 @@ namespace Makepure
                     _UseMap.Or(pick.UseMap);
                 }
                 BaseImage.UnlockBits();
+            }
+
+            /// <summary>
+            /// 增加取樣點
+            /// </summary>
+            public void AddPick(Color color, Point pickPoint)
+            {
+                _PickInfos.Add(new Pick()
+                {
+                    Allowance = 0,
+                    Range = MaxRange / 5,
+                    PickPoint = pickPoint,
+                    DisplayPoint = new Point((int)(pickPoint.X * _DisplayScale), (int)(pickPoint.Y * _DisplayScale)),
+                    Color = color,
+                    UseMap = new BitArray(ConvertImage.PixelCount)
+                });
+            }
+
+            /// <summary>
+            /// 增加取樣點並設定容許值及範圍
+            /// </summary>
+            public void AddPick(Color color, Point pickPoint, int allowance, int range)
+            {
+                Pick newPick = new Pick()
+                {
+                    Allowance = allowance,
+                    Range = range,
+                    PickPoint = pickPoint,
+                    DisplayPoint = new Point((int)(pickPoint.X * _DisplayScale), (int)(pickPoint.Y * _DisplayScale)),
+                    Color = color,
+                    UseMap = new BitArray(ConvertImage.PixelCount)
+                };
+                _PickInfos.Add(newPick);
+
+                int cot = BaseImage.PixelCount;
+                IntPtr basePtr = BaseImage.LockBitsAndGetScan0(ImageLockMode.ReadOnly);
+                IntPtr convertPtr = ConvertImage.LockBitsAndGetScan0(ImageLockMode.WriteOnly);
+                unsafe
+                {
+                    byte* baseP = (byte*)basePtr.ToPointer();
+                    byte* convertP = (byte*)convertPtr.ToPointer();
+                    double maxDistance = MaxRange / BaseImage.MaxDistance;
+                    int i = 0;
+                    for (int y = 0; y < BaseImage.Height; y++)
+                    {
+                        for (int x = 0; x < BaseImage.Width; x++)
+                        {
+                            byte r = baseP[2];
+                            byte g = baseP[1];
+                            byte b = baseP[0];
+                            int dR = Math.Abs(newPick.Color.R - r);
+                            int dG = Math.Abs(newPick.Color.G - g);
+                            int dB = Math.Abs(newPick.Color.B - b);
+                            short c = (byte)Math.Max(Math.Max(dR, dG), dB);
+                            short d = (short)(Function.GetDistance(x, y, newPick.PickPoint.X, newPick.PickPoint.Y) * maxDistance);
+                            if (c <= newPick.Allowance && d <= newPick.Range)
+                            {
+                                convertP[0] = baseP[0];
+                                convertP[1] = baseP[1];
+                                convertP[2] = baseP[2];
+                                newPick.UseMap[i] = true;
+                            }
+                            baseP += 4;
+                            convertP += 4;
+                            i++;
+                        }
+                    }
+                }
+                BaseImage.UnlockBits();
+                ConvertImage.UnlockBits();
             }
 
             /// <summary>
@@ -336,6 +431,27 @@ namespace Makepure
                 BaseImage.UnlockBits();
                 ConvertImage.UnlockBits();
             }
+
+            #region IDisposable Support
+            private bool disposedValue = false; // 偵測多餘的呼叫
+            protected virtual void Dispose(bool disposing)
+            {
+                if (!disposedValue)
+                {
+                    if (disposing)
+                    {
+                        ConvertImage.Dispose();
+                    }
+                    disposedValue = true;
+                }
+            }
+
+            // 加入這個程式碼的目的在正確實作可處置的模式。
+            public void Dispose()
+            {
+                Dispose(true);
+            }
+            #endregion
         }
     }
 }

@@ -148,31 +148,39 @@ namespace Makepure
 
         private void tsbtnSave_Click(object sender, EventArgs e)
         {
-            //if (saveFileDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-            //{
-            //    using (ImageObject savetImage = new ImageObject(new Bitmap(_BaseImage.Width, _BaseImage.Height)))
-            //    {
-            //        //PickColor(_BaseImage, savetImage, _PickInfos, 0);
-            //        string type = Path.GetExtension(saveFileDialog1.FileName).ToLower();
-            //        switch (type)
-            //        {
-            //            case ".bmp":
-            //                savetImage.Save(saveFileDialog1.FileName, ImageFormat.Bmp);
-            //                break;
-            //            case ".jpg":
-            //                savetImage.Save(saveFileDialog1.FileName, ImageFormat.Jpeg);
-            //                break;
-            //            case ".gif":
-            //                savetImage.Save(saveFileDialog1.FileName, ImageFormat.Gif);
-            //                break;
-            //            case ".png":
-            //                savetImage.Save(saveFileDialog1.FileName, ImageFormat.Png);
-            //                break;
-            //            default:
-            //                goto case ".bmp";
-            //        }
-            //    }
-            //}
+            if (saveFileDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                using (Pick.PureConverter converter = new Pick.PureConverter())
+                {
+                    converter.BaseImage = _BaseImage;
+
+                    double scale = (double)_BaseImage.Width / _ScaleImage.Width;
+                    foreach (Pick pick in _Converter.GetPickList())
+                    {
+                        Point basePoint = new Point((int)(pick.PickPoint.X * scale), (int)(pick.PickPoint.Y * scale));
+                        converter.AddPick(pick.Color, basePoint, pick.Allowance, pick.Range);
+                    }
+
+                    string type = Path.GetExtension(saveFileDialog1.FileName).ToLower();
+                    switch (type)
+                    {
+                        case ".bmp":
+                            converter.ConvertImage.Save(saveFileDialog1.FileName, ImageFormat.Bmp);
+                            break;
+                        case ".jpg":
+                            converter.ConvertImage.Save(saveFileDialog1.FileName, ImageFormat.Jpeg);
+                            break;
+                        case ".gif":
+                            converter.ConvertImage.Save(saveFileDialog1.FileName, ImageFormat.Gif);
+                            break;
+                        case ".png":
+                            converter.ConvertImage.Save(saveFileDialog1.FileName, ImageFormat.Png);
+                            break;
+                        default:
+                            goto case ".bmp";
+                    }
+                }
+            }
         }
 
         private void splitContainer1_SizeChanged(object sender, EventArgs e)
@@ -188,7 +196,7 @@ namespace Makepure
                 int dY = e.Y - _MouseDownPoint.Y;
                 Cursor.Position = new Point(Cursor.Position.X - dX, Cursor.Position.Y - dY);
 
-                _Converter.CurrentValuePlus(dY, dX * 10);
+                _Converter.CurrentValuePlus(-dY, dX * 10);
                 splitContainer1.Panel1.Invalidate(_ImageRect);
                 splitContainer1.Panel2.Invalidate(_ImageRect);
                 splitContainer1.Update();
@@ -198,11 +206,14 @@ namespace Makepure
                 if (Function.InRectangle(e.Location, _ImageRect))
                 {
                     int pickIdx = -1;
+                    int potX = e.X - _ImageRect.Left;
+                    int potY = e.Y - _ImageRect.Top;
                     double checkDist = Math.Pow(_AllowanceHalfWidth, 2); // 控制區域半徑平方
-                    for (int i = 0; i < _PickInfos.Count; i++)
+                    var picks = _Converter.GetPickList();
+                    for (int i = 0; i < picks.Count; i++)
                     {
-                        PickInfo pickInfo = _PickInfos[i];
-                        if (Math.Pow(pickInfo.DisplayPoint.X - e.X, 2) + Math.Pow(pickInfo.DisplayPoint.Y - e.Y, 2) < checkDist)
+                        Pick pick = picks[i];
+                        if (Math.Pow(pick.DisplayPoint.X - potX, 2) + Math.Pow(pick.DisplayPoint.Y - potY, 2) < checkDist)
                         {
                             pickIdx = i;
                             break;
@@ -212,8 +223,8 @@ namespace Makepure
                     bool refresh = _HoverIndex != pickIdx;
                     if (pickIdx < 0)
                     {
-                        int x = (int)((e.X - _ImageRect.Left) / _Scale);
-                        int y = (int)((e.Y - _ImageRect.Top) / _Scale);
+                        int x = (int)(potX / _Scale);
+                        int y = (int)(potY / _Scale);
                         if (x >= _ScaleImage.Width) x = _ScaleImage.Width - 1;
                         if (y >= _ScaleImage.Height) y = _ScaleImage.Height - 1;
                         _HoverIndex = -1;
@@ -224,7 +235,7 @@ namespace Makepure
                     {
                         Cursor = Cursors.Hand;
                         _HoverIndex = pickIdx;
-                        _HoverColor = _PickInfos[pickIdx].Color;
+                        _HoverColor = _Converter.GetPick(pickIdx).Color;
                     }
 
                     if (refresh)
@@ -275,18 +286,8 @@ namespace Makepure
                             if (x >= _ScaleImage.Width) x = _ScaleImage.Width - 1;
                             if (y >= _ScaleImage.Height) y = _ScaleImage.Height - 1;
                             Point pot = new Point(x, y);
-                            _PickInfos.Add(new PickInfo()
-                            {
-                                Allowance = 0,
-                                PickPoint = pot,
-                                DisplayPoint = e.Location,
-                                Color = _HoverColor,
-                                UseMap = new BitArray(_ScaleImage.Width * _ScaleImage.Height)
-                            });
-                            _PickInfoIndex = _PickInfos.Count - 1;
-
-                            BuildMap(_ColorMap, _DistanceMap, _UseMap, _ScaleImage, _PickInfos, _PickInfos[_PickInfoIndex]);
-                            PickColor(_ScaleImage, _ConvertedImage, _ColorMap, _DistanceMap, _UseMap, _PickInfos[_PickInfoIndex]);
+                            _Converter.AddPick(_HoverColor, pot);
+                            _Converter.SetCurrentIndex(_Converter.PickCount - 1);
                             splitContainer1.Invalidate(true);
                             Cursor = _NullCursor;
                             break;
@@ -313,7 +314,7 @@ namespace Makepure
 
                 if (_HoverColor == Color.Empty)
                 {
-                    e.Graphics.DrawString("點選圖片取樣顏色", _InfoFont, Brushes.Blue, _InfoRect, _InfoFormat2);
+                    e.Graphics.DrawString("點選圖片選擇取樣顏色", _InfoFont, Brushes.Blue, _InfoRect, _InfoFormat2);
                 }
                 else
                 {
@@ -325,50 +326,85 @@ namespace Makepure
                         rectEll.Offset(-2, -2);
                         e.Graphics.FillEllipse(brush, rectEll);
 
-                        string info;
+                        string info = null;
+                        string tip = null;
                         if (_MouseDown)
                         {
-                            info = string.Format("容許值{0}(移動滑鼠調整容許值 <<減少  增加>>)", _Converter.GetPick(_Converter.CurrentPickIndex).Allowance);
+                            Pick pick = _Converter.GetPick(_Converter.CurrentPickIndex);
+                            info = string.Format("色差容許值：{0}\n檢測範圍：{1}", pick.Allowance, pick.Range);
+                            tip = "滑鼠上下：調整容許值\n左右：調整範圍";
                         }
                         else if (_HoverIndex >= 0)
                         {
-                            info = string.Format("容許值{0}(左鍵:調整容許值 右鍵:刪除採樣點)", _Converter.GetPick(_HoverIndex).Allowance);
+                            Pick pick = _Converter.GetPick(_HoverIndex);
+                            info = string.Format("色差容許值：{0}\n檢測範圍：{1}", pick.Allowance, pick.Range);
+                            tip = "左鍵：調整容許值與範圍\n右鍵：刪除採樣點";
                         }
                         else
                         {
-                            info = "左鍵:設定採樣容許值";
+                            tip = "左鍵：新增採樣點";
                         }
-                        Rectangle rectInfo = new Rectangle(_InfoRect.Left + _ColorPotWidth + 5, _InfoRect.Top, _InfoRect.Width - _ColorPotWidth - 5, _InfoRect.Height);
-                        e.Graphics.DrawString(info, _InfoFont, Brushes.Blue, rectInfo, _InfoFormat2);
+
+                        int left = _InfoRect.Left + _ColorPotWidth + 8;
+                        int top = _InfoRect.Top;
+                        int width = _InfoRect.Width - _ColorPotWidth - 5;
+                        int height = _InfoRect.Height;
+                        if (info == null)
+                        {
+                            Rectangle rectInfo = new Rectangle(left, top, width, height);
+                            e.Graphics.DrawString(tip, _InfoFont, Brushes.Maroon, rectInfo, _InfoFormat2);
+                        }
+                        else
+                        {
+                            //Font font = pane new Font(_InfoFont.FontFamily, 12);
+                            if (width < 300)
+                            {
+                                int width1 = (int)(width * 0.65F);
+                                Font font = new Font(_InfoFont.FontFamily, width / 30);
+                                Rectangle rectInfo1 = new Rectangle(left, top, width / 2, height);
+                                Rectangle rectInfo2 = new Rectangle(left + width / 2, top, width / 2, height);
+                                e.Graphics.DrawString(info, font, Brushes.RoyalBlue, rectInfo1, _InfoFormat2);
+                                e.Graphics.DrawString(tip, font, Brushes.Maroon, rectInfo2, _InfoFormat2);
+                            }
+                            else
+                            {
+                                Rectangle rectInfo1 = new Rectangle(left, top, 150, height);
+                                Rectangle rectInfo2 = new Rectangle(left + 150, top, width - 150, height);
+                                e.Graphics.DrawString(info, _InfoFont, Brushes.RoyalBlue, rectInfo1, _InfoFormat2);
+                                e.Graphics.DrawString(tip, _InfoFont, Brushes.Maroon, rectInfo2, _InfoFormat2);
+                            }
+                        }
                     }
                 }
 
                 e.Graphics.DrawImage(_ScaleImage.Image, _ImageRect);
-                foreach (PickInfo pickInfo in _PickInfos)
+                foreach (Pick pick in _Converter.GetPickList())
                 {
-                    Rectangle rectFull = new Rectangle(pickInfo.DisplayPoint.X - _AllowanceHalfWidth, pickInfo.DisplayPoint.Y - _AllowanceHalfWidth, _AllowanceHalfWidth * 2, _AllowanceHalfWidth * 2);
-                    Rectangle rectCenter = new Rectangle(pickInfo.DisplayPoint.X - _AllowanceCenterWidth, pickInfo.DisplayPoint.Y - _AllowanceCenterWidth, _AllowanceCenterWidth * 2, _AllowanceCenterWidth * 2);
-                    using (SolidBrush fillBrush = new SolidBrush(Color.FromArgb(140, 255 - pickInfo.Color.R, 255 - pickInfo.Color.G, 255 - pickInfo.Color.B)))
-                    using (SolidBrush centerBrush = new SolidBrush(pickInfo.Color))
-                    using (Pen centerPen = new Pen(pickInfo.Color, _AllowanceCenterWidth))
+                    int potX = pick.DisplayPoint.X + _ImageRect.Left;
+                    int potY = pick.DisplayPoint.Y + _ImageRect.Top;
+                    Rectangle rectFull = new Rectangle(potX - _AllowanceHalfWidth, potY - _AllowanceHalfWidth, _AllowanceHalfWidth * 2, _AllowanceHalfWidth * 2);
+                    Rectangle rectCenter = new Rectangle(potX - _AllowanceCenterWidth, potY - _AllowanceCenterWidth, _AllowanceCenterWidth * 2, _AllowanceCenterWidth * 2);
+                    using (SolidBrush fillBrush = new SolidBrush(Color.FromArgb(140, 255 - pick.Color.R, 255 - pick.Color.G, 255 - pick.Color.B)))
+                    using (SolidBrush centerBrush = new SolidBrush(pick.Color))
+                    using (Pen centerPen = new Pen(pick.Color, _AllowanceCenterWidth))
                     {
                         e.Graphics.FillEllipse(fillBrush, rectFull);
                         e.Graphics.FillEllipse(centerBrush, rectCenter);
 
                         int maxWid = _AllowanceHalfWidth - _AllowanceCenterWidth;
-                        int lineLenV = (int)(maxWid * (pickInfo.Allowance / 255F));
-                        int lineLenH = (int)(maxWid * (pickInfo.Range / (float)_MaxRange));
+                        int lineLenV = (int)(maxWid * ((float)pick.Allowance / Pick.MaxAllowance));
+                        int lineLenH = (int)(maxWid * ((float)pick.Range / Pick.MaxRange));
 
                         if (lineLenV > 0)
                         {
-                            e.Graphics.DrawLine(centerPen, pickInfo.DisplayPoint.X, pickInfo.DisplayPoint.Y + lineLenV + _AllowanceCenterWidth,
-                                                           pickInfo.DisplayPoint.X, pickInfo.DisplayPoint.Y - lineLenV - _AllowanceCenterWidth);
+                            e.Graphics.DrawLine(centerPen, potX, potY + lineLenV + _AllowanceCenterWidth,
+                                                           potX, potY - lineLenV - _AllowanceCenterWidth);
                         }
 
                         if (lineLenH > 0)
                         {
-                            e.Graphics.DrawLine(centerPen, pickInfo.DisplayPoint.X + lineLenH + _AllowanceCenterWidth, pickInfo.DisplayPoint.Y,
-                                                           pickInfo.DisplayPoint.X - lineLenH - _AllowanceCenterWidth, pickInfo.DisplayPoint.Y);
+                            e.Graphics.DrawLine(centerPen, potX + lineLenH + _AllowanceCenterWidth, potY,
+                                                           potX - lineLenH - _AllowanceCenterWidth, potY);
                         }
                     }
                     e.Graphics.DrawEllipse(Pens.Black, rectFull);
@@ -383,20 +419,24 @@ namespace Makepure
 
         private void splitContainer1_Panel2_Paint(object sender, PaintEventArgs e)
         {
-            if (_ConvertedImage != null)
+            if (_Converter.ConvertImage != null)
             {
                 e.Graphics.DrawString("預覽", _InfoFont2, Brushes.Maroon, 5, 5);
-                e.Graphics.DrawImage(_ConvertedImage.Image, _ImageRect);
+                e.Graphics.DrawImage(_Converter.ConvertImage.Image, _ImageRect);
 
-                int pickIdx = _MouseDown ? _PickInfoIndex : _HoverIndex;
+                int pickIdx = _MouseDown ? _Converter.CurrentPickIndex : _HoverIndex;
                 if (pickIdx >= 0)
                 {
+                    e.Graphics.Clip = new Region(_ImageRect);
                     e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    Pick pick = _Converter.GetPick(pickIdx);
 
-                    PickInfo pick = _PickInfos[pickIdx];
-                    int rangeWid = (int)(_ConvertedImage.MaxDistance * pick.Range / _MaxRange * _Scale);
-                    e.Graphics.DrawEllipse(Pens.Black, pick.DisplayPoint.X - rangeWid, pick.DisplayPoint.Y - rangeWid, rangeWid * 2, rangeWid * 2);
-                    e.Graphics.DrawEllipse(Pens.White, pick.DisplayPoint.X - rangeWid + 1, pick.DisplayPoint.Y - rangeWid + 1, rangeWid * 2 - 2, rangeWid * 2 - 2);
+                    int potX = pick.DisplayPoint.X + _ImageRect.Left;
+                    int potY = pick.DisplayPoint.Y + _ImageRect.Top;
+                    int rangeWid = (int)(_Converter.ConvertImage.MaxDistance * pick.Range / Pick.MaxRange * _Scale);
+                    e.Graphics.DrawEllipse(Pens.Black, potX - rangeWid, potY - rangeWid, rangeWid * 2, rangeWid * 2);
+                    e.Graphics.DrawEllipse(Pens.White, potX - rangeWid + 1, potY - rangeWid + 1, rangeWid * 2 - 2, rangeWid * 2 - 2);
+                    e.Graphics.ResetClip();
                 }
             }
             else
@@ -442,23 +482,15 @@ namespace Makepure
 
             if (_BaseImage != null) _BaseImage.Dispose();
             if (_ScaleImage != null) _ScaleImage.Dispose();
-            if (_ConvertedImage != null) _ConvertedImage.Dispose();
 
-            _PickInfos.Clear();
             _BaseImage = new ImageObject(new Bitmap(tempImage));
 
             double maxHei = 500, maxWid = 500;
             double scale = Math.Max(_BaseImage.Height / maxHei, _BaseImage.Width / maxWid);
             Size newSize = new Size((int)(_BaseImage.Width / scale), (int)(_BaseImage.Height / scale));
             _ScaleImage = new ImageObject(new Bitmap(tempImage, newSize));           //產生縮小預覽圖片
-            _ConvertedImage = _ScaleImage.Copy();
+            _Converter.BaseImage = _ScaleImage;
 
-            int mapLen = _ScaleImage.PixelCount;
-            _ColorMap = new byte[mapLen]; //色彩差異暫存表配置大小
-            _DistanceMap = new short[mapLen];
-            _UseMap = new BitArray(mapLen);
-
-            PickColor(_ScaleImage, _ConvertedImage, _PickInfos, 0);
             SetImageSize();
             saveFileDialog1.InitialDirectory = Path.GetDirectoryName(path);
             tsbtnSave.Enabled = true;
@@ -486,85 +518,9 @@ namespace Makepure
             Point loc = new Point(locX, locY);
             _ImageRect = new Rectangle(loc, size);
             _InfoRect = new Rectangle(_ImagePadding.Left, 5, splitContainer1.Panel1.Width - _ImagePadding.Horizontal, _ImagePadding.Top - 10);
-            foreach (PickInfo pickInfo in _PickInfos)
-            {
-                int x = (int)(pickInfo.PickPoint.X * _Scale) + _ImageRect.Left;
-                int y = (int)(pickInfo.PickPoint.Y * _Scale) + _ImageRect.Top;
-                Point pot = new Point(x, y);
-                pickInfo.DisplayPoint = new Point(x, y);
-            }
+            _Converter.DisplayScale = _Scale;
 
             splitContainer1.Invalidate(true);
         }
-
-
-
-        ///// <summary>
-        ///// 產生濾色後的圖片
-        ///// </summary>
-        ///// <param name="baseImage">原始圖片</param>
-        ///// <param name="convertImage">處理後圖片</param>
-        ///// <param name="pickInfos">取樣點列表</param>
-        ///// <param name="mode">模式 0:完整　1:增加 -1:減少</param>
-        //private void PickColor(ImageObject baseImage, ImageObject convertImage, List<PickInfo> pickInfos, int mode)
-        //{
-        //    int cot = baseImage.PixelCount;
-        //    IntPtr basePtr = baseImage.LockBitsAndGetScan0(ImageLockMode.ReadOnly);
-        //    IntPtr convertPtr = convertImage.LockBitsAndGetScan0(ImageLockMode.WriteOnly);
-        //    unsafe
-        //    {
-        //        byte* baseP = (byte*)basePtr.ToPointer();
-        //        byte* convertP = (byte*)convertPtr.ToPointer();
-
-        //        for (int i = 0; i < cot; i++)
-        //        {
-        //            byte r2 = convertP[2];
-        //            byte g2 = convertP[1];
-        //            byte b2 = convertP[0];
-        //            bool gray = r2 == g2 && g2 == b2;
-        //            if (mode == 0 || (mode > 0 && gray) || (mode < 0 && !gray))
-        //            {
-        //                byte r = baseP[2];
-        //                byte g = baseP[1];
-        //                byte b = baseP[0];
-        //                convertP[3] = baseP[3];
-
-        //                bool match = false;
-        //                foreach (var pickInfo in pickInfos)
-        //                {
-        //                    if (Math.Abs(pickInfo.Color.R - r) <= pickInfo.Allowance &&
-        //                        Math.Abs(pickInfo.Color.G - g) <= pickInfo.Allowance &&
-        //                        Math.Abs(pickInfo.Color.B - b) <= pickInfo.Allowance)
-        //                    {
-        //                        match = true;
-        //                        break;
-        //                    }
-        //                }
-
-        //                if (match)
-        //                {
-        //                    convertP[0] = b;
-        //                    convertP[1] = g;
-        //                    convertP[2] = r;
-        //                }
-        //                else
-        //                {
-        //                    byte v = (byte)((r + g + b) / 3);
-        //                    convertP[0] = v;
-        //                    convertP[1] = v;
-        //                    convertP[2] = v;
-        //                }
-        //            }
-
-        //            convertP += 4;
-        //            baseP += 4;
-        //        }
-        //    }
-        //    baseImage.UnlockBits();
-        //    convertImage.UnlockBits();
-        //}
-
     }
-
-
 }

@@ -49,7 +49,7 @@
             this.toolStrip1.Location = new System.Drawing.Point(0, 0);
             this.toolStrip1.Name = "toolStrip1";
             this.toolStrip1.RenderMode = System.Windows.Forms.ToolStripRenderMode.Professional;
-            this.toolStrip1.Size = new System.Drawing.Size(984, 27);
+            this.toolStrip1.Size = new System.Drawing.Size(984, 25);
             this.toolStrip1.TabIndex = 0;
             this.toolStrip1.Text = "toolStrip1";
             // 
@@ -59,7 +59,7 @@
             this.tsbtnOpen.Image = ((System.Drawing.Image)(resources.GetObject("tsbtnOpen.Image")));
             this.tsbtnOpen.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.tsbtnOpen.Name = "tsbtnOpen";
-            this.tsbtnOpen.Size = new System.Drawing.Size(77, 24);
+            this.tsbtnOpen.Size = new System.Drawing.Size(59, 22);
             this.tsbtnOpen.Text = "開啟圖片";
             this.tsbtnOpen.Click += new System.EventHandler(this.tsbtnOpen_Click);
             // 
@@ -70,7 +70,7 @@
             this.tsbtnSave.Image = ((System.Drawing.Image)(resources.GetObject("tsbtnSave.Image")));
             this.tsbtnSave.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.tsbtnSave.Name = "tsbtnSave";
-            this.tsbtnSave.Size = new System.Drawing.Size(77, 24);
+            this.tsbtnSave.Size = new System.Drawing.Size(59, 22);
             this.tsbtnSave.Text = "另存圖片";
             this.tsbtnSave.Click += new System.EventHandler(this.tsbtnSave_Click);
             // 
@@ -85,7 +85,7 @@
             this.splitContainer1.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
             this.splitContainer1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.splitContainer1.IsSplitterFixed = true;
-            this.splitContainer1.Location = new System.Drawing.Point(0, 27);
+            this.splitContainer1.Location = new System.Drawing.Point(0, 25);
             this.splitContainer1.Name = "splitContainer1";
             // 
             // splitContainer1.Panel1
@@ -100,7 +100,7 @@
             // 
             this.splitContainer1.Panel2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(244)))), ((int)(((byte)(247)))), ((int)(((byte)(252)))));
             this.splitContainer1.Panel2.Paint += new System.Windows.Forms.PaintEventHandler(this.splitContainer1_Panel2_Paint);
-            this.splitContainer1.Size = new System.Drawing.Size(984, 622);
+            this.splitContainer1.Size = new System.Drawing.Size(984, 624);
             this.splitContainer1.SplitterDistance = 492;
             this.splitContainer1.TabIndex = 1;
             this.splitContainer1.SizeChanged += new System.EventHandler(this.splitContainer1_SizeChanged);
@@ -120,6 +120,7 @@
             this.Controls.Add(this.splitContainer1);
             this.Controls.Add(this.toolStrip1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+            this.MinimumSize = new System.Drawing.Size(600, 300);
             this.Name = "MainForm";
             this.Text = "Makepure";
             this.toolStrip1.ResumeLayout(false);

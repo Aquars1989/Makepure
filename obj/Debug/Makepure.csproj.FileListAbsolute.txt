@@ -6,3 +6,11 @@ C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Debu
 C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Debug\Makepure.exe
 C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Debug\Makepure.pdb
 C:\Users\Aquars\Documents\Visual Studio 2013\Projects\Makepure\Makepure\obj\Debug\Makepure.csprojResolveAssemblyReference.cache
+E:\VsProject\Makepure\Makepure\obj\Debug\Makepure.csprojResolveAssemblyReference.cache
+E:\VsProject\Makepure\Makepure\obj\Debug\Makepure.MainForm.resources
+E:\VsProject\Makepure\Makepure\obj\Debug\Makepure.Properties.Resources.resources
+E:\VsProject\Makepure\Makepure\obj\Debug\Makepure.csproj.GenerateResource.Cache
+E:\VsProject\Makepure\Makepure\bin\Debug\Makepure.exe
+E:\VsProject\Makepure\Makepure\bin\Debug\Makepure.pdb
+E:\VsProject\Makepure\Makepure\obj\Debug\Makepure.exe
+E:\VsProject\Makepure\Makepure\obj\Debug\Makepure.pdb

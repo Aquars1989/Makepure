@@ -4,7 +4,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{C860089B-B338-49B4-BCC6-07954316802D}</ProjectGuid>
+    <ProjectGuid>{9F9B0154-07F5-485E-BE8C-E6EC77847B87}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Makepure</RootNamespace>
