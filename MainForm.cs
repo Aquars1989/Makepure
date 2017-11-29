@@ -488,7 +488,7 @@ namespace Makepure
             double maxHei = 500, maxWid = 500;
             double scale = Math.Max(_BaseImage.Height / maxHei, _BaseImage.Width / maxWid);
             Size newSize = new Size((int)(_BaseImage.Width / scale), (int)(_BaseImage.Height / scale));
-            _ScaleImage = new ImageObject(new Bitmap(tempImage, newSize));           //產生縮小預覽圖片
+            _ScaleImage = new ImageObject(new Bitmap(tempImage, newSize));           // 產生縮小預覽圖片
             _Converter.BaseImage = _ScaleImage;
 
             SetImageSize();
